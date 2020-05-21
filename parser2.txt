@@ -1,0 +1,142 @@
+%{
+#include <stdio.h>
+#include <conio.h>
+#include <stdlib.h>
+#include "lex.yy.c"
+#include "three.h"
+# define MAX(a,b)( ((a)>(b)) ? a : b )
+extern FILE* yyin;
+extern char* yytext;
+
+void yyerror(char *);
+int defindedId(int i);
+void outToC();
+void printCode(int i);
+
+int reserved;
+int lastTemp = 0;
+
+%}
+%token   ASSIGNMENT_SIGN LEFT_PAR_SYM RIGHT_PAR_SYM Realnum Intnum identifier
+
+%left bool_OR_KW
+%left bool_AND_KW
+%left EQUAL_SIGN NOTEQUAL_SIGN eq_prec
+%left LOWER_SIGN GRATER_SIGN  gl_prec
+%left LOWERandEQUAL_SIGN GRATERandEQUAL_SIGN gle_prec
+%left PLUS_SIGN MINUS_SIGN pm_prec
+%left MULT_SIGN SLASH_SIGN md_prec
+%left MOD_KW DRV_KW mds_prec
+%right bool_NOT_KW unit_prec
+%%
+stmt : identifier ASSIGNMENT_SIGN exp		  {setValueType($1,getValueType($3)); generate(-1,$1,$3,-1) ;}
+          |                                          {printf("syntax error: %s\n",$$);}
+          ;
+
+exp : exp MDop exp %prec md_prec{$$ = newTemp(MAX(getValueType($1),getValueType($3))); generate($2,$$,$1,$3); }
+   | exp MDSop exp %prec mds_prec{$$ = newTemp(MAX(getValueType($1),getValueType($3))); generate($2,$$,$1,$3); }
+   | exp PMop exp %prec pm_prec{$$ = newTemp(MAX(getValueType($1),getValueType($3))); generate($2,$$,$1,$3); }
+   | exp GLop exp %prec gl_prec{$$ = newTemp(MAX(getValueType($1),getValueType($3))); generate($2,$$,$1,$3); }
+   | exp GLEop exp %prec gle_prec{$$ = newTemp(MAX(getValueType($1),getValueType($3))); generate($2,$$,$1,$3); }
+   | exp EQop exp %prec eq_prec{$$ = newTemp(MAX(getValueType($2),getValueType($3))); generate($2,$$,$1,$3); }
+   | UNIop exp %prec unit_prec{$$ = newTemp(getValueType($2)); generate($1,$$,$2,-1); }
+   | exp bool_AND_KW exp {$$ = newTemp(MAX(getValueType($1),getValueType($3))); generate(AND,$$,$1,$3); }                                 
+   | exp bool_OR_KW exp {$$ = newTemp(MAX(getValueType($1),getValueType($3))); generate(OR,$$,$1,$3); }
+   | LEFT_PAR_SYM exp RIGHT_PAR_SYM {$$ = $2;}
+   | Realnum {$$ = $1;}
+   | Intnum {$$ = $1;}	
+   | identifier {$$ = defindedId($1);$$ = $1;}
+   
+;
+
+MDop : MULT_SIGN { $$ = MUL; } 	
+     | SLASH_SIGN	 { $$ = DIV; }
+;
+
+
+PMop :  PLUS_SIGN { $$ = ADD; }	
+     |  MINUS_SIGN	{ $$ = SUB; }
+;
+
+GLop :  LOWER_SIGN { $$ = LES; }
+     |  GRATER_SIGN	{ $$ = GR; }
+;
+ 
+GLEop :  LOWERandEQUAL_SIGN { $$ = LSE; }  	
+     |   GRATERandEQUAL_SIGN	{ $$ = GRE; }
+;
+
+
+EQop :  EQUAL_SIGN { $$ = EQ; }
+     |  NOTEQUAL_SIGN { $$ = NEQ; } 
+;
+
+UNIop :  bool_NOT_KW { $$ = NOT; }
+     |   MINUS_SIGN { $$ = SUB; }
+;
+MDSop : DRV_KW { $$ = DIV; }
+     | MOD_KW { $$ = DIV; }
+;
+
+
+%%
+
+main()
+{
+	yyin = fopen("fn.txt", "r");
+	yyparse();
+	printSymTable();
+	
+	outToC();
+	getch();
+	return 0;
+}
+
+void yyerror(char *sl)
+{
+	printf("%s\n" , sl);
+	return;
+}
+
+int defindedId(int i)
+{
+int j;
+j = getValueType(i);
+if(j==0)yyerror("Undifined Symbol");
+return j;
+}
+
+void outToC()
+{
+int i;
+yyout = fopen("out.txt","w");
+//printIDs();
+for(i = 0; i<lastIndex;i++)
+	printCode(i);
+fclose(yyout); 
+}
+
+void printCode(int i)
+{
+
+switch(codeTable[i].operand)
+{
+case(-1) : fprintf(yyout,"%s:=%s;\n",getSymbol(codeTable[i].result), getSymbol(codeTable[i].op1)); break;
+case(ADD) : fprintf(yyout,"%s=%s+%s;\n",getSymbol(codeTable[i].result), getSymbol(codeTable[i].op1),getSymbol(codeTable[i].op2)); break;
+case(AND) :fprintf(yyout,"%s=%s&&%s;\n",getSymbol(codeTable[i].result), getSymbol(codeTable[i].op1),getSymbol(codeTable[i].op2)); break;
+case(SUB) : if(getSymbol(codeTable[i].op2)) fprintf(yyout,"%s=%s-%s;\n",getSymbol(codeTable[i].result), getSymbol(codeTable[i].op1),getSymbol(codeTable[i].op2)); 
+		else fprintf(yyout,"%s=-%s;\n",getSymbol(codeTable[i].result), getSymbol(codeTable[i].op1)); break;
+case(MUL): fprintf(yyout,"%s=%s*%s;\n",getSymbol(codeTable[i].result), getSymbol(codeTable[i].op1),getSymbol(codeTable[i].op2)); break;
+case(DIV): fprintf(yyout,"%s=%s/%s;\n",getSymbol(codeTable[i].result), getSymbol(codeTable[i].op1),getSymbol(codeTable[i].op2)); break;
+case(OR) : fprintf(yyout,"%s=%s||%s;\n",getSymbol(codeTable[i].result), getSymbol(codeTable[i].op1),getSymbol(codeTable[i].op2)); break;
+case(EQ) : fprintf(yyout,"%s=%s=%s;\n",getSymbol(codeTable[i].result), getSymbol(codeTable[i].op1),getSymbol(codeTable[i].op2)); break;
+case(GR) :fprintf(yyout,"%s=%s>%s;\n",getSymbol(codeTable[i].result), getSymbol(codeTable[i].op1),getSymbol(codeTable[i].op2)); break;
+case(LES) : fprintf(yyout,"%s=%s<%s;\n",getSymbol(codeTable[i].result), getSymbol(codeTable[i].op1),getSymbol(codeTable[i].op2)); break;
+case(LSE) : fprintf(yyout,"%s=%s<=%s;\n",getSymbol(codeTable[i].result), getSymbol(codeTable[i].op1),getSymbol(codeTable[i].op2)); break;
+case(GRE) : fprintf(yyout,"%s=%s>=%s;\n",getSymbol(codeTable[i].result), getSymbol(codeTable[i].op1),getSymbol(codeTable[i].op2)); break;
+case(NEQ) : fprintf(yyout,"%s=%s!=%s;\n",getSymbol(codeTable[i].result), getSymbol(codeTable[i].op1),getSymbol(codeTable[i].op2)); break;
+case(NOT) : fprintf(yyout,"%s=!%s;\n",getSymbol(codeTable[i].result), getSymbol(codeTable[i].op1)); break;
+
+
+}
+}

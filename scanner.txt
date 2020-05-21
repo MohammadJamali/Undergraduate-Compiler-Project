@@ -1,0 +1,111 @@
+/*** Definition section ***/
+
+/* This tells flex to read only one input file */
+%option noyywrap
+
+
+/* With this Flex will keep track of the current line number in a variable named yylineno */
+%option yylineno
+
+%{
+/* C code to be copied verbatim */
+#include<stdio.h>
+#include "symTable.h"
+#include "parser2.txt_tab.h"
+int symTableIndex;
+%}
+
+ws [ \t\n]+
+DIGIT	[0-9]
+letter [a-zA-Z]
+
+%%
+    /*** Rules section ***/
+
+
+
+":="   return(ASSIGNMENT_SIGN);
+        
+
+"and"  return(bool_AND_KW);
+        
+
+
+"or"	 return(bool_OR_KW);
+
+
+"mod"	 return(MOD_KW);
+
+
+
+"not"	 return(bool_NOT_KW);
+
+"drv"	 return(DRV_KW);
+ 
+"<>"	 return(NOTEQUAL_SIGN); 
+ 
+
+"<"      return(LOWER_SIGN);         
+   
+
+">"	return(GRATER_SIGN);
+                    
+
+"<="	 return(LOWERandEQUAL_SIGN);
+
+
+"="	 return(EQUAL_SIGN);
+
+
+">="	 return(GRATERandEQUAL_SIGN);	
+      
+
+"("	 return(LEFT_PAR_SYM);
+ 
+
+")"	 return(RIGHT_PAR_SYM);
+     
+
+"+"     return(PLUS_SIGN);
+  
+"-"	 return(MINUS_SIGN);       
+
+"*"	 return(MULT_SIGN);        
+
+"/"	  return(SLASH_SIGN);        
+
+
+{DIGIT}*"."{DIGIT}+   		{
+		
+            	symTableIndex = addToSymTable(yytext,numToken);
+		setValueType(symTableIndex, realType);
+		yylval = symTableIndex;
+		setRealVal(symTableIndex,atof(yytext));
+		return(Realnum);
+            		}
+
+
+{DIGIT}+       	{
+		
+            	symTableIndex = addToSymTable(yytext,numToken);
+		setValueType(symTableIndex, intType);
+		yylval = symTableIndex;
+		setIntVal(symTableIndex,atof(yytext));
+		return(Intnum);
+            		}
+
+{letter}+({letter}|{DIGIT})*  	{
+		
+            	addToSymTable(yytext,idToken);
+		return(identifier);
+            		}	
+
+		/*{letter}+({letter}{DIGIT})**/
+
+
+{ws}	/*do nothing*/
+%%
+int yywarp()
+{
+	return 1;
+}
